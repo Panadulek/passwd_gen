@@ -6,14 +6,16 @@
 #include <linux/kdev_t.h>
 #include <linux/cdev.h>
 #include <linux/random.h>
-#define BUFFER_LEN 16
-#define DEVICE_NAME "Password_Generator"
+#include <linux/slab.h>
+#define DEVICE_NAME "passwd_gen"
 #define MINIMUM_CHAR_IN_ASCII 0x21
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Jordan_Jazbor");
+static size_t BUFFER_LEN = 16;
 static dev_t dev = 0;
 static struct class *device_file = NULL;
 static struct cdev passwd_gen_cdev;
-static char passwd[16];
+static char *passwd = NULL;
 static int idx = 0;
 static char get_random_char(void)
 {
@@ -39,7 +41,6 @@ static char get_new_buffer_len(char* buffer)
 	while(len != 0 && !err_flag)
 	{
 		it = buffer + (len - 1);
-		pr_info("it = %c", *it);
 		if(*it < '0' || *it > '9')
 		{
 			err_flag = 1;
@@ -75,7 +76,6 @@ static ssize_t read_character_device(struct file* fd, char __user* buffer, size_
 static ssize_t write_character_device(struct file* fd, const char __user* buffor, size_t size, loff_t* offset)
 {
 	char a[32];
-	char dbg;
 	size = (sizeof(a) - *offset < size) ? (sizeof(a) - *offset) : size;
 	if(size <= 0)
 		return 0;
@@ -84,7 +84,7 @@ static ssize_t write_character_device(struct file* fd, const char __user* buffor
 		return -EFAULT;
 	}
 	pr_info("to jest przyczytany znak: %s", a, a);
-	dbg = get_new_buffer_len(a);
+	BUFFER_LEN = get_new_buffer_len(a);
 	
 	*offset += size;
 	return size;
@@ -150,6 +150,7 @@ static int __init init_device(void)
 	{
 		printk(KERN_INFO "class created device \n");
 	}
+	passwd = (char *)kmalloc(BUFFER_LEN * sizeof(char), GFP_KERNEL);
 	return 0;
 }
 static void __exit exit_device(void)
@@ -158,6 +159,7 @@ static void __exit exit_device(void)
 	device_destroy(device_file, dev);
 	class_destroy(device_file);
 	unregister_chrdev_region(dev, 1);
+	kfree(passwd);
 }
 module_init(init_device);
 module_exit(exit_device);
