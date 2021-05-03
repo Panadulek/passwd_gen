@@ -8,16 +8,13 @@
 #include <linux/random.h>
 #define BUFFER_LEN 16
 #define DEVICE_NAME "Password_Generator"
-
 #define MINIMUM_CHAR_IN_ASCII 0x21
 MODULE_LICENSE("GPL");
 static dev_t dev = 0;
 static struct class *device_file = NULL;
 static struct cdev passwd_gen_cdev;
 static char passwd[16];
-
 static int idx = 0;
-
 static char get_random_char(void)
 {
 
@@ -29,16 +26,39 @@ static char get_random_char(void)
 	}
 	return byte;
 }
-
-
-
+static char get_new_buffer_len(char* buffer)
+{
+	size_t len = strlen(buffer);
+	char *it = NULL;
+	int multiplier = 1;
+	int err_flag = 0;
+	char ret = 0;
+	len--; //probably enter
+	if(len > 2)
+		err_flag = 1;
+	while(len != 0 && !err_flag)
+	{
+		it = buffer + (len - 1);
+		pr_info("it = %c", *it);
+		if(*it < '0' || *it > '9')
+		{
+			err_flag = 1;
+			break;
+		}
+		ret += ((*it - '0') * multiplier);
+		len--;
+		multiplier *= 10;
+	}
+	if(err_flag)
+		ret = BUFFER_LEN;
+	return ret;
+}
 static ssize_t read_character_device(struct file* fd, char __user* buffer, size_t size, loff_t* pos)
 {
 	char byte = '\0';
-	char len = BUFFER_LEN;
+	int len = BUFFER_LEN;
 	char* it = passwd;
-	size_t remainder_size = BUFFER_LEN - idx; // 0
-	size_t bytes_to_copy = 0;
+	pr_info("odczytuje");
 	while(len != 0)
 	{
 		byte = get_random_char();
@@ -46,23 +66,29 @@ static ssize_t read_character_device(struct file* fd, char __user* buffer, size_
 		it++;
 		len--;	
 	}
-	bytes_to_copy = (remainder_size <= size) ? remainder_size  : size; // 0
-	pr_info(" DUPA bytes_to_copy = %d", bytes_to_copy);
-	if(copy_to_user(buffer, passwd, bytes_to_copy))
+	size = (BUFFER_LEN - *pos < size) ? (BUFFER_LEN - *pos)  : size; // 0
+	if(copy_to_user(buffer, passwd, size))
 		return -EPERM;
-	pr_info("\n DUPA device read function %s, checK: %d", passwd, (bytes_to_copy == 0) ? 0 : 1);
-	idx += bytes_to_copy;
-	pr_info("idx = %d\n bytes_to_copy = %d\n reminder_size = %d\n offset = %d\n", idx, bytes_to_copy, remainder_size, *pos);
-	return bytes_to_copy;
-}
-
-static ssize_t write_character_device(struct file* fd, const char __user* buffor, size_t size, loff_t* loff_ptr)
-{
-	pr_info("device write fun");
+	*pos += size;
 	return size;
 }
-
-
+static ssize_t write_character_device(struct file* fd, const char __user* buffor, size_t size, loff_t* offset)
+{
+	char a[32];
+	char dbg;
+	size = (sizeof(a) - *offset < size) ? (sizeof(a) - *offset) : size;
+	if(size <= 0)
+		return 0;
+	if(copy_from_user(a, buffor, size))
+	{
+		return -EFAULT;
+	}
+	pr_info("to jest przyczytany znak: %s", a, a);
+	dbg = get_new_buffer_len(a);
+	
+	*offset += size;
+	return size;
+}
 static int open_character_device(struct inode* inodePtr, struct file * fd)
 {
 	
@@ -70,14 +96,11 @@ static int open_character_device(struct inode* inodePtr, struct file * fd)
 	idx = 0;
 	return 0;
 }
-
 static int release_character_device(struct inode* inodePtr, struct file *fd)
 {
 	pr_info("device realese fun");
 	return 0;
 }
-
-
 struct file_operations fops = {
 	.owner = THIS_MODULE,
 	.read = read_character_device,
@@ -129,8 +152,6 @@ static int __init init_device(void)
 	}
 	return 0;
 }
-
-
 static void __exit exit_device(void)
 {
 	printk(KERN_INFO "Device Character Exit \n");
@@ -138,7 +159,5 @@ static void __exit exit_device(void)
 	class_destroy(device_file);
 	unregister_chrdev_region(dev, 1);
 }
-	
-
 module_init(init_device);
 module_exit(exit_device);
