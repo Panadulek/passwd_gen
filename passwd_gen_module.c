@@ -16,7 +16,6 @@ static dev_t dev = 0;
 static struct class *device_file = NULL;
 static struct cdev passwd_gen_cdev;
 static char *passwd = NULL;
-static int idx = 0;
 static char get_random_char(void)
 {
 
@@ -28,25 +27,24 @@ static char get_random_char(void)
 	}
 	return byte;
 }
-static char get_new_buffer_len(char* buffer)
+static char get_new_buffer_len(char* buffer, size_t size)
 {
-	size_t len = strlen(buffer);
 	char *it = NULL;
 	int multiplier = 1;
 	int err_flag = 0;
 	char ret = 0;
-	if(len > 2)
+	if(size > 2)
 		err_flag = 1;
-	while(len != 0 && !err_flag)
+	while(size != 0 && !err_flag)
 	{
-		it = buffer + (len - 1);
+		it = buffer + (size - 1);
 		if(*it < '0' || *it > '9')
 		{
 			err_flag = 1;
 			break;
 		}
 		ret += ((*it - '0') * multiplier);
-		len--;
+		size--;
 		multiplier *= 10;
 	}
 	if(err_flag)
@@ -82,8 +80,7 @@ static ssize_t write_character_device(struct file* fd, const char __user* user_b
 	{
 		return -EFAULT;
 	}
-	BUFFER_LEN = get_new_buffer_len(kern_buffer);
-	
+	BUFFER_LEN = get_new_buffer_len(kern_buffer, size - 1);
 	*offset += size;
 	return size;
 }
@@ -91,7 +88,6 @@ static int open_character_device(struct inode* inodePtr, struct file * fd)
 {
 	
 	pr_info("device open fun");
-	idx = 0;
 	return 0;
 }
 static int release_character_device(struct inode* inodePtr, struct file *fd)
