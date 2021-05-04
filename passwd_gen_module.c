@@ -35,7 +35,6 @@ static char get_new_buffer_len(char* buffer)
 	int multiplier = 1;
 	int err_flag = 0;
 	char ret = 0;
-	len--; //probably enter
 	if(len > 2)
 		err_flag = 1;
 	while(len != 0 && !err_flag)
@@ -73,18 +72,17 @@ static ssize_t read_character_device(struct file* fd, char __user* buffer, size_
 	*pos += size;
 	return size;
 }
-static ssize_t write_character_device(struct file* fd, const char __user* buffor, size_t size, loff_t* offset)
+static ssize_t write_character_device(struct file* fd, const char __user* user_buffer, size_t size, loff_t* offset)
 {
-	char a[32];
-	size = (sizeof(a) - *offset < size) ? (sizeof(a) - *offset) : size;
+	char kern_buffer[32];
+	size = (sizeof(kern_buffer) - *offset < size) ? (sizeof(kern_buffer) - *offset) : size;
 	if(size <= 0)
 		return 0;
-	if(copy_from_user(a, buffor, size))
+	if(copy_from_user(kern_buffer, user_buffer, size - 1))
 	{
 		return -EFAULT;
 	}
-	pr_info("to jest przyczytany znak: %s", a, a);
-	BUFFER_LEN = get_new_buffer_len(a);
+	BUFFER_LEN = get_new_buffer_len(kern_buffer);
 	
 	*offset += size;
 	return size;
